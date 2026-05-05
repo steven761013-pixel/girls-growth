@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>湘晴 & 新芫｜身高體重紀錄本</title>
+
+<!-- Firebase SDK -->
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, onValue, set, remove }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // ╔══════════════════════════════════════════════════╗
+  // ║  請把下方設定換成你的 Firebase 專案設定          ║
+  // ╚══════════════════════════════════════════════════╝
+  const firebaseConfig = {
+    apiKey:            "AIzaSyC-3tc-M5vMBX9Pv24Ix36rMAj9mBDAw1k",
+    authDomain:        "girls-growth-f63e9.firebaseapp.com",
+    databaseURL:       "https://girls-growth-f63e9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:         "girls-growth-f63e9",
+    storageBucket:     "girls-growth-f63e9.firebasestorage.app",
+    messagingSenderId: "821757995281",
+    appId:             "1:821757995281:web:81fb314e42bf26ab4f04b0"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  // 把 db 掛到 window 讓頁面其他程式可以用
+  window._db  = db;
+  window._ref = ref;
+  window._set = set;
+  window._remove = remove;
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event("firebase-ready"));
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --pink:      #E8A0BF;
+    --pink-acc:  #C45C8A;
+    --blue:      #A8D8EA;
+    --blue-acc:  #4A90C4;
+    --bg:        #fdf6fb;
+    --bg2:       #f0f7fd;
+    --text:      #5a3a5a;
+    --muted:     #b08ab0;
+    --border:    #f0e4f0;
+  }
+
+  body {
+    font-family: 'Noto Serif TC', serif;
+    background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+    min-height: 100vh;
+    color: var(--text);
+    padding-bottom: 80px;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #E8A0BF44, #A8D8EA44);
+    padding: 28px 20px 20px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-label {
+    font-size: 10px; letter-spacing: 4px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px; font-weight: 400; color: var(--text); letter-spacing: 2px;
+  }
+  .header-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Sync status ── */
+  #sync-status {
+    font-size: 11px; text-align: center; padding: 5px 0;
+    transition: all .3s;
+  }
+  .sync-ok   { background: #e8f5e9; color: #4caf50; }
+  .sync-err  { background: #fff3e0; color: #e65100; }
+  .sync-load { background: #f3f3f3; color: #aaa; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; border-bottom: 2px solid var(--border); background: #fff; }
+  .tab-btn {
+    flex: 1; padding: 14px 0; border: none; background: transparent;
+    border-bottom: 3px solid transparent;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: all .2s; color: #ccc;
+  }
+  .tab-btn.active-xq { background: #E8A0BF22; border-bottom-color: var(--pink-acc); color: var(--pink-acc); }
+  .tab-btn.active-xy { background: #A8D8EA22; border-bottom-color: var(--blue-acc); color: var(--blue-acc); }
+
+  /* ── Sub Nav ── */
+  .subnav { display: flex; gap: 8px; padding: 12px 16px; background: #fafafa; border-bottom: 1px solid var(--border); }
+  .sub-btn {
+    padding: 7px 14px; border-radius: 20px; border: none;
+    background: #f0e8f5; color: #a0809a;
+    font-size: 13px; cursor: pointer; font-family: inherit; transition: all .2s;
+  }
+  .sub-btn.active { background: var(--acc); color: #fff; font-weight: 700; }
+
+  /* ── Cards ── */
+  .content { padding: 16px; }
+
+  .stat-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .stat-card {
+    flex: 1; border-radius: 14px; padding: 12px 14px;
+  }
+  .stat-label { font-size: 11px; margin-bottom: 2px; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-unit  { font-size: 12px; font-weight: 400; margin-left: 2px; }
+  .stat-date  { font-size: 10px; color: #bbb; margin-top: 2px; }
+
+  /* Records */
+  .record-card {
+    background: #fff; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .record-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .record-date   { font-size: 13px; font-weight: 700; }
+  .record-age    { font-size: 11px; color: #ccc; margin-left: 8px; }
+  .delete-btn {
+    border: none; background: none; color: #ddd;
+    font-size: 16px; cursor: pointer; padding: 0;
+  }
+  .record-vals { display: flex; gap: 16px; margin-top: 8px; }
+  .val-big  { font-size: 18px; font-weight: 700; }
+  .val-unit { font-size: 11px; color: #bbb; }
+  .who-ref  { font-size: 10px; color: #ccc; }
+  .record-note { font-size: 12px; color: #a08090; margin-top: 6px; font-style: italic; }
+
+  .empty { text-align: center; color: #ccc; padding: 40px 0; font-size: 14px; }
+
+  /* Chart */
+  .chart-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .chart-toggle-btn {
+    padding: 7px 18px; border-radius: 20px; border: none;
+    background: #f0e8f5; color: #a0809a;
+    font-size: 13px; cursor: pointer; font-family: inherit; transition: all .2s;
+  }
+  .chart-toggle-btn.active { background: var(--text); color: #fff; font-weight: 700; }
+  .chart-box {
+    background: #fff; border-radius: 16px; padding: 14px 8px 8px;
+    border: 1px solid var(--border);
+  }
+  .chart-legend {
+    display: flex; gap: 16px; justify-content: center;
+    margin-top: 8px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #888; }
+  .legend-line { width: 20px; height: 3px; border-radius: 2px; }
+  .chart-note  { font-size: 11px; color: #ccc; text-align: center; margin-top: 10px; }
+
+  /* Form */
+  .form-box {
+    background: #fff; border-radius: 16px; padding: 20px;
+  }
+  .form-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 12px; color: #a0809a; margin-bottom: 4px; }
+  .form-input {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    font-size: 15px; outline: none;
+    font-family: inherit; color: var(--text);
+  }
+  .submit-btn {
+    width: 100%; padding: 13px; border-radius: 12px; border: none;
+    color: #fff; font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: inherit; letter-spacing: 1px;
+  }
+  .saved-msg { text-align: center; margin-top: 12px; font-size: 13px; }
+
+  /* Setup banner */
+  #setup-banner {
+    background: #fff8e1; border-left: 4px solid #ffc107;
+    padding: 14px 16px; margin: 12px 16px;
+    border-radius: 8px; font-size: 13px; line-height: 1.7; color: #5d4037;
+    display: none;
+  }
+  #setup-banner b { color: #e65100; }
+  #setup-banner code {
+    background: #fff3cd; padding: 1px 5px; border-radius: 4px;
+    font-family: monospace; font-size: 12px;
+  }
+</style>
+
+</head>
+<body>
+
+<!-- Setup Banner (shown until Firebase is configured) -->
+
+<div id="setup-banner">
+  ⚠️ <b>尚未連接 Firebase</b>，資料目前只存在本機瀏覽器。<br>
+  請依照下方步驟設定，完成後將可與老婆共同編輯：<br>
+  1. 前往 <b>console.firebase.google.com</b> → 建立新專案<br>
+  2. 左側選 <b>Realtime Database</b> → 建立資料庫（選 test mode）<br>
+  3. 點右上角 <b>⚙️ 專案設定</b> → 複製「您的應用程式」底下的設定物件<br>
+  4. 用文字編輯器打開此 HTML 檔，將 <code>firebaseConfig</code> 的值換掉，存檔重開
+</div>
+
+<!-- Header -->
+
+<div class="header">
+  <div class="header-label">成長日記</div>
+  <h1>湘晴 &amp; 新芫</h1>
+  <div class="header-sub">身高體重紀錄本</div>
+</div>
+
+<!-- Sync status -->
+
+<div id="sync-status" class="sync-load">⏳ 連線中…</div>
+
+<!-- Tabs -->
+
+<div class="tabs">
+  <button class="tab-btn active-xq" id="tab-xq" onclick="switchTab('湘晴')">🐰 湘晴</button>
+  <button class="tab-btn" id="tab-xy" onclick="switchTab('新芫')">🐷 新芫</button>
+</div>
+
+<!-- Sub Nav -->
+
+<div class="subnav" id="subnav"></div>
+
+<!-- Content -->
+
+<div class="content" id="content"></div>
+
+<script>
+// ─── Config ───────────────────────────────────────────
+const CHILDREN = {
+  湘晴: { color: "#E8A0BF", accent: "#C45C8A", emoji: "🐰", birthDate: "2021-05-17" },
+  新芫: { color: "#A8D8EA", accent: "#4A90C4", emoji: "🐷", birthDate: "2023-04-07" },
+};
+
+const WHO_HEIGHT = {0:49.1,6:65.7,12:74,18:80.7,24:85.7,30:90.4,36:94.1,42:97.7,48:101,54:104.5,60:107.9,66:111.2,72:114.6,78:118,84:121.2,96:127.3,108:133,120:138.6,132:144,144:149.5,156:154.2,168:157.5};
+const WHO_WEIGHT = {0:3.2,6:7.3,12:9.2,18:10.8,24:12,30:13.2,36:14.3,42:15.3,48:16.3,54:17.3,60:18.4,66:19.5,72:20.6,78:21.8,84:23.1,96:25.8,108:28.9,120:32.5,132:37,144:42,156:46.8,168:50.5};
+
+// ─── State ────────────────────────────────────────────
+let activeTab  = "湘晴";
+let activeView = "records";
+let chartType  = "height";
+let records    = { 湘晴: [], 新芫: [] };
+let savedMsg   = false;
+
+// ─── Firebase ─────────────────────────────────────────
+let useFirebase = false;
+
+function initFirebase() {
+  if (!window._firebaseReady) return;
+  const configured = document.querySelector('script[type="module"]').textContent
+    .includes('"YOUR_API_KEY"');
+  if (configured) {
+    document.getElementById("setup-banner").style.display = "block";
+    loadFromLocalStorage();
+    render();
+    return;
+  }
+  useFirebase = true;
+  const db = window._db;
+  window._ref(db, "records").on
+    ? listenFirebase()
+    : listenFirebaseModule();
+}
+
+function listenFirebase() {
+  // onValue is imported as module; use global shim
+  const db  = window._db;
+  const rr  = window._ref(db, "records");
+  // Firebase v10 modular — use onValue
+  import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js")
+    .then(({ onValue }) => {
+      onValue(rr, (snap) => {
+        const val = snap.val();
+        records["湘晴"] = (val && val["湘晴"]) ? Object.values(val["湘晴"]) : [];
+        records["新芫"] = (val && val["新芫"]) ? Object.values(val["新芫"]) : [];
+        setStatus("ok");
+        render();
+      }, () => setStatus("err"));
+    });
+}
+
+function listenFirebaseModule() {
+  listenFirebase();
+}
+
+function saveToFirebase(name) {
+  if (!useFirebase) { saveLocal(); return; }
+  const db = window._db;
+  const obj = {};
+  records[name].forEach((r, i) => { obj[r.date.replace("-", "_")] = r; });
+  import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js")
+    .then(({ set, ref }) => {
+      set(ref(db, `records/${name}`), obj)
+        .then(() => setStatus("ok"))
+        .catch(() => setStatus("err"));
+    });
+}
+
+function deleteFromFirebase(name, date) {
+  if (!useFirebase) { saveLocal(); return; }
+  const db = window._db;
+  import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js")
+    .then(({ remove, ref }) => {
+      remove(ref(db, `records/${name}/${date.replace("-","_")}`))
+        .then(() => setStatus("ok"))
+        .catch(() => setStatus("err"));
+    });
+}
+
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem("growth_records");
+    if (raw) {
+      const d = JSON.parse(raw);
+      records["湘晴"] = d["湘晴"] || [];
+      records["新芫"] = d["新芫"] || [];
+    }
+  } catch {}
+  setStatus("local");
+}
+
+function saveLocal() {
+  localStorage.setItem("growth_records", JSON.stringify(records));
+}
+
+function setStatus(state) {
+  const el = document.getElementById("sync-status");
+  el.className = "";
+  if (state === "ok") {
+    el.className = "sync-ok";
+    el.textContent = "☁️ 已同步雲端";
+  } else if (state === "err") {
+    el.className = "sync-err";
+    el.textContent = "⚠️ 雲端連線失敗，資料暫存本機";
+  } else if (state === "local") {
+    el.className = "sync-load";
+    el.textContent = "💾 本機模式（尚未設定 Firebase）";
+  } else {
+    el.className = "sync-load";
+    el.textContent = "⏳ 連線中…";
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────
+function getAgeMonths(birthDate, recordDate) {
+  const [by, bm] = birthDate.split("-").map(Number);
+  const [ry, rm] = recordDate.split("-").map(Number);
+  return (ry - by) * 12 + (rm - bm);
+}
+
+function formatAge(months) {
+  const y = Math.floor(months / 12), m = months % 12;
+  if (y === 0) return `${m}個月`;
+  if (m === 0) return `${y}歲`;
+  return `${y}歲${m}個月`;
+}
+
+function interpolate(table, months) {
+  const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
+  for (let i = 0; i < keys.length-1; i++) {
+    if (months >= keys[i] && months <= keys[i+1]) {
+      const t = (months-keys[i])/(keys[i+1]-keys[i]);
+      return table[keys[i]] + t*(table[keys[i+1]]-table[keys[i]]);
+    }
+  }
+  return months < keys[0] ? table[keys[0]] : table[keys[keys.length-1]];
+}
+
+// ─── Render ───────────────────────────────────────────
+function switchTab(name) {
+  activeTab = name;
+  activeView = "records";
+  render();
+}
+function switchView(v) {
+  activeView = v;
+  render();
+}
+function toggleChart(t) {
+  chartType = t;
+  renderChart();
+}
+
+function render() {
+  renderTabs();
+  renderSubnav();
+  renderContent();
+}
+
+function renderTabs() {
+  document.getElementById("tab-xq").className =
+    "tab-btn" + (activeTab === "湘晴" ? " active-xq" : "");
+  document.getElementById("tab-xy").className =
+    "tab-btn" + (activeTab === "新芫" ? " active-xy" : "");
+}
+
+function renderSubnav() {
+  const cfg = CHILDREN[activeTab];
+  const views = [["records","📋 紀錄"],["chart","📈 曲線圖"],["add","➕ 新增"]];
+  document.getElementById("subnav").innerHTML = views.map(([v,label]) => `
+    <button class="sub-btn${activeView===v?" active":""}"
+      style="${activeView===v?`background:${cfg.accent};color:#fff`:""}"
+      onclick="switchView('${v}')">${label}</button>
+  `).join("");
+}
+
+function renderContent() {
+  const cfg = CHILDREN[activeTab];
+  const recs = (records[activeTab] || []).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  let html = "";
+
+  // Latest stats
+  if (recs.length > 0) {
+    const latest = recs[0];
+    html += `<div class="stat-row">`;
+    [["📏 身高", latest.height, "cm"], ["⚖️ 體重", latest.weight, "kg"]].forEach(([label,val,unit]) => {
+      html += `
+        <div class="stat-card" style="background:linear-gradient(135deg,${cfg.color}44,${cfg.color}22);border:1px solid ${cfg.color}">
+          <div class="stat-label" style="color:${cfg.accent}">${label}</div>
+          <div class="stat-value" style="color:${cfg.accent}">
+            ${val != null ? val : "—"}<span class="stat-unit">${val != null ? unit : ""}</span>
+          </div>
+          <div class="stat-date">${latest.date} 最新</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (activeView === "records") {
+    if (recs.length === 0) {
+      html += `<div class="empty">還沒有紀錄<br><span style="font-size:12px">點選「新增」開始記錄 ${activeTab} 的成長吧！</span></div>`;
+    } else {
+      recs.forEach(r => {
+        const ageM = getAgeMonths(cfg.birthDate, r.date);
+        const whoH = r.height != null ? interpolate(WHO_HEIGHT, ageM) : null;
+        const whoW = r.weight != null ? interpolate(WHO_WEIGHT, ageM) : null;
+        html += `
+          <div class="record-card" style="border:1px solid ${cfg.color}88">
+            <div class="record-header">
+              <div>
+                <span class="record-date" style="color:${cfg.accent}">${r.date}</span>
+                <span class="record-age">${formatAge(ageM)}</span>
+              </div>
+              <button class="delete-btn" onclick="deleteRecord('${r.date}')">✕</button>
+            </div>
+            <div class="record-vals">
+              ${r.height!=null?`<div><span class="val-big" style="color:var(--text)">${r.height}</span><span class="val-unit"> cm</span>${whoH?`<div class="who-ref">WHO均值 ${whoH.toFixed(1)} cm</div>`:""}</div>`:""}
+              ${r.weight!=null?`<div><span class="val-big" style="color:var(--text)">${r.weight}</span><span class="val-unit"> kg</span>${whoW?`<div class="who-ref">WHO均值 ${whoW.toFixed(1)} kg</div>`:""}</div>`:""}
+            </div>
+            ${r.note?`<div class="record-note">💬 ${r.note}</div>`:""}
+          </div>`;
+      });
+    }
+  }
+
+  if (activeView === "chart") {
+    html += `
+      <div class="chart-toggle" id="chart-toggle">
+        <button class="chart-toggle-btn${chartType==="height"?" active":""}" onclick="toggleChart('height')">📏 身高</button>
+        <button class="chart-toggle-btn${chartType==="weight"?" active":""}" onclick="toggleChart('weight')">⚖️ 體重</button>
+      </div>
+      <div class="chart-box">
+        <svg id="chart-svg" width="100%" viewBox="0 0 480 220" style="display:block"></svg>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-line" style="background:${CHILDREN["湘晴"].accent}"></div>🐰 湘晴</div>
+          <div class="legend-item"><div class="legend-line" style="background:${CHILDREN["新芫"].accent}"></div>🐷 新芫</div>
+          <div class="legend-item"><div style="width:20px;border-top:2px dashed #ddd"></div>WHO</div>
+        </div>
+      </div>
+      <div class="chart-note">虛線為 WHO 女童生長標準中位數</div>`;
+  }
+
+  if (activeView === "add") {
+    const today = new Date().toISOString().slice(0,7);
+    html += `
+      <div class="form-box" style="border:1px solid ${cfg.color}">
+        <div class="form-title" style="color:${cfg.accent}">${cfg.emoji} 新增 ${activeTab} 的紀錄</div>
+        <div class="form-group">
+          <label class="form-label">📅 日期（年月）</label>
+          <input class="form-input" id="f-date" type="month" value="${today}"
+            style="border:1.5px solid ${cfg.color};background:${cfg.color}11" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">📏 身高 (cm)</label>
+          <input class="form-input" id="f-height" type="number" step="0.1" placeholder="例：105.5"
+            style="border:1.5px solid ${cfg.color};background:${cfg.color}11" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">⚖️ 體重 (kg)</label>
+          <input class="form-input" id="f-weight" type="number" step="0.1" placeholder="例：17.2"
+            style="border:1.5px solid ${cfg.color};background:${cfg.color}11" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">💬 備註</label>
+          <input class="form-input" id="f-note" type="text" placeholder="例：健兒門診、上幼稚園前"
+            style="border:1.5px solid ${cfg.color};background:${cfg.color}11" />
+        </div>
+        <button class="submit-btn" onclick="addRecord()"
+          style="background:linear-gradient(135deg,${cfg.color},${cfg.accent})">儲存紀錄</button>
+        <div id="saved-msg" class="saved-msg" style="color:${cfg.accent};display:none">✓ 已儲存！</div>
+      </div>`;
+  }
+
+  document.getElementById("content").innerHTML = html;
+
+  if (activeView === "chart") renderChart();
+}
+
+function renderChart() {
+  const svg = document.getElementById("chart-svg");
+  if (!svg) return;
+
+  // Update toggle buttons
+  document.querySelectorAll(".chart-toggle-btn").forEach(btn => {
+    const t = btn.textContent.includes("身高") ? "height" : "weight";
+    btn.className = "chart-toggle-btn" + (chartType === t ? " active" : "");
+  });
+
+  const W=480, H=220, pL=44, pR=16, pT=16, pB=36;
+  const cW=W-pL-pR, cH=H-pT-pB;
+  const table = chartType === "height" ? WHO_HEIGHT : WHO_WEIGHT;
+
+  const allRecs = Object.entries(records).flatMap(([name, recs]) =>
+    recs.filter(r=>r[chartType]!=null).map(r=>({
+      ...r, name,
+      accent: CHILDREN[name].accent,
+      ageM: getAgeMonths(CHILDREN[name].birthDate, r.date)
+    }))
+  );
+
+  if (allRecs.length === 0) {
+    svg.innerHTML = `<text x="240" y="110" text-anchor="middle" fill="#ccc" font-size="13">尚無資料，新增紀錄後顯示曲線圖</text>`;
+    return;
+  }
+
+  const maxAge = Math.max(...allRecs.map(r=>r.ageM), 72);
+  const minAge = Math.min(...allRecs.map(r=>r.ageM), 0);
+  const whoPoints = [];
+  for (let m = Math.floor(minAge/6)*6; m <= maxAge+6; m+=3) whoPoints.push({m, v: interpolate(table,m)});
+  const allVals = [...allRecs.map(r=>r[chartType]), ...whoPoints.map(p=>p.v)];
+  const minV = Math.min(...allVals)*0.97, maxV = Math.max(...allVals)*1.02;
+
+  const tx = m => pL + ((m-minAge)/(maxAge-minAge||1))*cW;
+  const ty = v => pT + cH - ((v-minV)/(maxV-minV||1))*cH;
+
+  let out = "";
+
+  // Grid
+  for(let i=0;i<=4;i++){
+    const v = minV+(i/4)*(maxV-minV), y=ty(v);
+    out += `<line x1="${pL}" y1="${y.toFixed(1)}" x2="${W-pR}" y2="${y.toFixed(1)}" stroke="#f0e8f5" stroke-width="1"/>`;
+    out += `<text x="${pL-4}" y="${(y+4).toFixed(1)}" font-size="10" text-anchor="end" fill="#bbb">${v.toFixed(chartType==="height"?0:1)}</text>`;
+  }
+  for(let i=0;i<=5;i++){
+    const m = minAge+(i/5)*(maxAge-minAge), x=tx(m);
+    out += `<line x1="${x.toFixed(1)}" y1="${pT}" x2="${x.toFixed(1)}" y2="${H-pB}" stroke="#f0e8f5" stroke-width="1"/>`;
+    out += `<text x="${x.toFixed(1)}" y="${H-pB+14}" font-size="10" text-anchor="middle" fill="#bbb">${formatAge(Math.round(m))}</text>`;
+  }
+
+  // WHO
+  const whoPath = whoPoints.map((p,i)=>`${i===0?"M":"L"}${tx(p.m).toFixed(1)},${ty(p.v).toFixed(1)}`).join(" ");
+  out += `<path d="${whoPath}" fill="none" stroke="#ddd" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+
+  // Lines per child
+  ["湘晴","新芫"].forEach(name => {
+    const pts = allRecs.filter(r=>r.name===name).sort((a,b)=>a.ageM-b.ageM);
+    if(pts.length < 1) return;
+    const path = pts.map((p,i)=>`${i===0?"M":"L"}${tx(p.ageM).toFixed(1)},${ty(p[chartType]).toFixed(1)}`).join(" ");
+    out += `<path d="${path}" fill="none" stroke="${CHILDREN[name].accent}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+
+  // Dots
+  allRecs.forEach(r => {
+    out += `<circle cx="${tx(r.ageM).toFixed(1)}" cy="${ty(r[chartType]).toFixed(1)}" r="4" fill="${r.accent}" stroke="white" stroke-width="1.5"/>`;
+  });
+
+  svg.innerHTML = out;
+}
+
+// ─── Actions ──────────────────────────────────────────
+function addRecord() {
+  const date   = document.getElementById("f-date")?.value;
+  const height = document.getElementById("f-height")?.value;
+  const weight = document.getElementById("f-weight")?.value;
+  const note   = document.getElementById("f-note")?.value;
+  if (!date || (!height && !weight)) return;
+
+  const rec = {
+    date,
+    height: height ? parseFloat(height) : null,
+    weight: weight ? parseFloat(weight) : null,
+    note: note || ""
+  };
+
+  records[activeTab] = [
+    ...(records[activeTab] || []).filter(r => r.date !== date),
+    rec
+  ].sort((a,b) => a.date.localeCompare(b.date));
+
+  if (useFirebase) saveToFirebase(activeTab);
+  else saveLocal();
+
+  const msg = document.getElementById("saved-msg");
+  if(msg) { msg.style.display="block"; setTimeout(()=>{ msg.style.display="none"; },1800); }
+
+  setTimeout(() => { activeView = "records"; render(); }, 800);
+}
+
+function deleteRecord(date) {
+  if (!confirm(`確定刪除 ${date} 的紀錄嗎？`)) return;
+  records[activeTab] = (records[activeTab] || []).filter(r => r.date !== date);
+  if (useFirebase) deleteFromFirebase(activeTab, date);
+  else saveLocal();
+  render();
+}
+
+// ─── Boot ─────────────────────────────────────────────
+document.addEventListener("firebase-ready", () => {
+  initFirebase();
+});
+
+// Fallback if Firebase script fails or takes too long
+setTimeout(() => {
+  if (!document.getElementById("content").innerHTML) {
+    loadFromLocalStorage();
+    render();
+  }
+}, 3000);
+</script>
+
+</body>
+</html>
